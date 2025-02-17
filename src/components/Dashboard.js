@@ -2,7 +2,8 @@ import { Box, Typography, useMediaQuery, useTheme } from "@mui/material"
 import { PieChart, Pie, Cell, Legend, ResponsiveContainer, Tooltip } from "recharts"
 import { tasks } from "../data/dashboardData"
 import "./Dashboard.css"
-import { TrendingUp, TrendingDown, Schedule, CheckCircle, Error, Pending } from '@mui/icons-material';
+import { TrendingUp, TrendingDown, Schedule, CheckCircle, Error, Pending, Lock } from '@mui/icons-material';
+import { useState, useEffect } from "react";
 
 const STATUS_COLORS = {
   'Completed': '#00C853',
@@ -99,6 +100,296 @@ const formatStatusLabel = (status) => {
       return status;
   }
 };
+
+// Add this helper function to check dependency status
+const getDependencyStatus = (task, allTasks) => {
+  if (!task.dependencies || task.dependencies.length === 0) {
+    return {
+      canStart: true,
+      failedDependencies: []
+    };
+  }
+
+  const failedDependencies = task.dependencies.filter(depId => {
+    const depTask = allTasks.find(t => t.id === depId);
+    return depTask && depTask.status === 'Failed';
+  });
+
+  const hasFailedDependencies = failedDependencies.length > 0;
+  const allDependenciesComplete = task.dependencies.every(depId => {
+    const depTask = allTasks.find(t => t.id === depId);
+    return depTask && (depTask.status === 'Completed' || 
+                      depTask.status === 'Early Completed' || 
+                      depTask.status === 'Delay Completed');
+  });
+
+  return {
+    canStart: !hasFailedDependencies && allDependenciesComplete,
+    failedDependencies
+  };
+};
+
+// Add this component to show dependency lines
+const DependencyLines = ({ task, allTasks, taskPositions }) => {
+  if (!task.dependencies || task.dependencies.length === 0) return null;
+
+  return task.dependencies.map(depId => {
+    const depTask = allTasks.find(t => t.id === depId);
+    if (!depTask || !taskPositions[depId]) return null;
+
+    const startPos = taskPositions[depId];
+    const endPos = taskPositions[task.id];
+    
+    return (
+      <svg
+        key={`${depId}-${task.id}`}
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          width: '100%',
+          height: '100%',
+          pointerEvents: 'none'
+        }}
+      >
+        <line
+          x1={startPos.x}
+          y1={startPos.y}
+          x2={endPos.x}
+          y2={endPos.y}
+          stroke={depTask.status === 'Failed' ? '#FF0000' : '#666'}
+          strokeWidth="1"
+          strokeDasharray={depTask.status === 'Failed' ? "4" : "none"}
+        />
+      </svg>
+    );
+  });
+};
+
+// Update the DependencyArrow component
+const DependencyArrow = ({ startTask, endTask }) => {
+  const [arrowPoints, setArrowPoints] = useState(null);
+
+  useEffect(() => {
+    const calculateArrowPoints = () => {
+      const startElement = document.getElementById(startTask.id);
+      const endElement = document.getElementById(endTask.id);
+      
+      if (!startElement || !endElement) return null;
+
+      const startRect = startElement.getBoundingClientRect();
+      const endRect = endElement.getBoundingClientRect();
+      const timelineContainer = document.querySelector('.timeline-wrapper').getBoundingClientRect();
+
+      // Calculate relative positions
+      const startX = startRect.right - timelineContainer.left;
+      const startY = startRect.top + (startRect.height / 2) - timelineContainer.top;
+      const endX = endRect.left - timelineContainer.left;
+      const endY = endRect.top + (endRect.height / 2) - timelineContainer.top;
+
+      return { startX, startY, endX, endY };
+    };
+
+    setArrowPoints(calculateArrowPoints());
+
+    const handleResize = () => setArrowPoints(calculateArrowPoints());
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [startTask, endTask]);
+
+  if (!arrowPoints) return null;
+
+  const { startX, startY, endX, endY } = arrowPoints;
+  const controlX = startX + (endX - startX) / 2;
+
+  return (
+    <svg
+      style={{
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        width: '100%',
+        height: '100%',
+        pointerEvents: 'none',
+        zIndex: 1
+      }}
+    >
+      <defs>
+        <marker
+          id={`arrowhead-${startTask.id}-${endTask.id}`}
+          markerWidth="10"
+          markerHeight="7"
+          refX="9"
+          refY="3.5"
+          orient="auto"
+        >
+          <polygon
+            points="0 0, 10 3.5, 0 7"
+            fill="#FF0000"
+          />
+        </marker>
+      </defs>
+      <path
+        d={`M ${startX} ${startY} Q ${controlX} ${startY} ${(startX + endX) / 2} ${(startY + endY) / 2} T ${endX} ${endY}`}
+        fill="none"
+        stroke="#FF0000"
+        strokeWidth="1.5"
+        strokeDasharray="4"
+        markerEnd={`url(#arrowhead-${startTask.id}-${endTask.id})`}
+      />
+    </svg>
+  );
+};
+
+// Update the Timeline component's dependency handling
+const Timeline = () => {
+  const allTasks = tasks.reduce((acc, group) => [...acc, ...group.tasks], []);
+
+  // Find all failed tasks and their dependencies
+  const getFailedTaskConnections = () => {
+    const connections = [];
+    
+    // Find all failed tasks
+    const failedTasks = allTasks.filter(task => task.status === 'Failed');
+    
+    // For each failed task
+    failedTasks.forEach(failedTask => {
+      // Get its dependencies
+      failedTask.dependencies.forEach(depId => {
+        const depTask = allTasks.find(t => t.id === depId);
+        if (depTask) {
+          // Create connection from dependency to failed task
+          connections.push({
+            startTask: depTask,         // Arrow starts from dependency
+            endTask: failedTask,        // Arrow points to failed task
+            isBlocked: true
+          });
+        }
+      });
+    });
+
+    return connections;
+  };
+
+  // Render dependency arrows
+  const renderDependencyArrows = () => {
+    const connections = getFailedTaskConnections();
+    return connections.map(({ startTask, endTask }, index) => (
+      <DependencyArrow
+        key={`${startTask.id}-${endTask.id}-${index}`}
+        startTask={startTask}
+        endTask={endTask}
+      />
+    ));
+  };
+
+  const renderTask = (task) => {
+    const dependencyStatus = getDependencyStatus(task, allTasks);
+    const isBlocked = !dependencyStatus.canStart;
+    
+    return (
+      <Box 
+        id={task.id}
+        key={task.id} 
+        className={`task-item ${isBlocked ? 'blocked' : ''}`}
+      >
+        <Box
+          className="task-bar"
+          style={{ 
+            background: isBlocked ? '#f5f5f5' : getTaskColor(task.status, task.completedPercentage, false),
+            opacity: task.status === 'Pending' ? 1 : (isBlocked ? 0.7 : 1)
+          }}
+        >
+          <Box className="task-content">
+            <Box className="task-name">
+              <Typography 
+                component="span" 
+                style={{ 
+                  color: task.status === 'Pending' ? '#424242' : '#FFFFFF',
+                  fontWeight: 600,
+                  fontSize: '15px',
+                  marginRight: '8px'
+                }}
+              >
+                {task.name}
+              </Typography>
+              {task.status === 'Completed' && <CheckCircle fontSize="small" />}
+              {task.status === 'Failed' && <Error fontSize="small" color="error" />}
+              {task.status === 'Pending' && (
+                <Pending 
+                  fontSize="small" 
+                  style={{ 
+                    color: '#757575',
+                    marginLeft: '4px'
+                  }}
+                />
+              )}
+              {isBlocked && (
+                <Tooltip title={`Blocked by failed dependencies: ${
+                  dependencyStatus.failedDependencies
+                    .map(id => allTasks.find(t => t.id === id)?.name)
+                    .join(', ')
+                }`}>
+                  <Lock fontSize="small" style={{ marginLeft: 4, color: '#616161' }} />
+                </Tooltip>
+              )}
+            </Box>
+            <Box className="task-time">
+              <Schedule className="time-icon" />
+              <span style={{ 
+                color: task.status === 'Pending' ? '#000000' : 'inherit',
+                fontWeight: task.status === 'Pending' ? 500 : 'normal'
+              }}>
+                {formatTimeDisplay(task)}
+              </span>
+            </Box>
+          </Box>
+        </Box>
+      </Box>
+    );
+  };
+
+  return (
+    <Box className="timeline-wrapper" style={{ position: 'relative' }}>
+      {tasks.map((taskGroup) => (
+        <Box key={taskGroup.category} className="timeline-row">
+          <Box className="category-label">
+            {taskGroup.category}
+            <span className="category-count">{taskGroup.tasks.length}</span>
+          </Box>
+          <Box className="tasks-container">
+            {taskGroup.tasks.map(task => renderTask(task))}
+          </Box>
+        </Box>
+      ))}
+      {/* Render arrows after all tasks */}
+      {renderDependencyArrows()}
+    </Box>
+  );
+};
+
+// Add some CSS for the timeline
+const styles = `
+.timeline-wrapper {
+  position: relative;
+  overflow: visible;
+}
+
+.task-item {
+  position: relative;
+  z-index: 2;
+}
+
+.task-item.blocked {
+  border: 1px dashed #999;
+}
+
+.task-bar {
+  position: relative;
+  z-index: 2;
+  background: white;
+}
+`;
 
 const Dashboard = () => {
   const theme = useTheme()
@@ -345,39 +636,7 @@ const Dashboard = () => {
             </Box>
           </Box>
           <Box className="timeline-wrapper">
-            {tasks.map((taskGroup) => (
-              <Box key={taskGroup.category} className="timeline-row">
-                <Box className="category-label">
-                  {taskGroup.category}
-                  <span className="category-count">{taskGroup.tasks.length}</span>
-                </Box>
-                <Box className="tasks-container">
-                  {taskGroup.tasks.map((task) => (
-                    <Box key={task.name} className="task-item">
-                      <Box
-                        className="task-bar"
-                        style={{ 
-                          background: getTaskColor(task.status, task.completedPercentage, false)
-                        }}
-                      >
-                        <Box className="task-content">
-                          <Box className="task-name">
-                            {task.name}
-                            {task.status === 'Completed' && <CheckCircle fontSize="small" />}
-                            {task.status === 'Failed' && <Error fontSize="small" />}
-                            {task.status === 'Pending' && <Pending fontSize="small" />}
-                          </Box>
-                          <Box className="task-time">
-                            <Schedule className="time-icon" />
-                            {formatTimeDisplay(task)}
-                          </Box>
-                        </Box>
-                      </Box>
-                    </Box>
-                  ))}
-                </Box>
-              </Box>
-            ))}
+            {Timeline()}
           </Box>
         </Box>
       </Box>

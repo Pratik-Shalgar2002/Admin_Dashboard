@@ -1,0 +1,128 @@
+.timeline-wrapper {
+  position: relative;
+  overflow: visible;
+  padding: 20px;
+}
+
+.task-item {
+  position: relative;
+  z-index: 2;
+  margin: 8px 0;
+}
+
+.task-item.blocked {
+  border: 1px dashed #999;
+}
+
+.task-bar {
+  position: relative;
+  z-index: 2;
+  background: white;
+  padding: 8px;
+  border-radius: 4px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+/* Improve visibility for pending tasks */
+.task-bar[style*="rgb(158, 158, 158)"] {  /* Matches Pending status color */
+  background: #F5F5F5 !important;  /* Light gray background */
+  border: 2px solid #757575;      /* Darker gray border */
+  color: #424242;                 /* Dark gray text */
+}
+
+.task-bar[style*="rgb(158, 158, 158)"] .task-content {
+  opacity: 1;
+}
+
+.task-bar[style*="rgb(158, 158, 158)"] .task-name {
+  color: #424242;                /* Dark gray for better readability */
+  font-weight: 600;              /* Keep bold */
+  font-size: 15px;              /* Slightly larger */
+  letter-spacing: 0.3px;        /* Better spacing */
+  background: #FFFFFF;          /* White background */
+  padding: 4px 8px;            /* More padding */
+  border-radius: 4px;          /* Rounded corners */
+  border: 1px solid #BDBDBD;   /* Light gray border */
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05);  /* Subtle shadow */
+}
+
+.task-bar[style*="rgb(158, 158, 158)"] .task-time {
+  color: #616161;                /* Slightly lighter than the task name */
+  font-weight: 500;
+  background: rgba(255,255,255,0.8);  /* Semi-transparent white */
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+
+/* Style for pending task icons */
+.task-bar[style*="rgb(158, 158, 158)"] .MuiSvgIcon-root {
+  color: #757575 !important;     /* Match the border color */
+}
+
+/* Remove the white background from task content as it's not needed anymore */
+.task-bar[style*="rgb(158, 158, 158)"] .task-content .task-name {
+  background: none;
+  padding: 0;
+  border-radius: 0;
+}
+
+.timeline-row {
+  position: relative;
+  margin-bottom: 16px;
+}
+
+.tasks-container {
+  position: relative;
+  margin-left: 120px;
+}
+
+.task-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.task-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 500;
+}
+
+/* Style for non-pending task names */
+.task-bar:not([style*="rgb(158, 158, 158)"]) .task-name {
+  color: #FFFFFF;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.1);
+}
+
+/* Style for completed task names */
+.task-bar[style*="rgb(0, 200, 83)"] .task-name {  /* Green color for completed */
+  color: #FFFFFF;
+}
+
+/* Style for failed task names */
+.task-bar[style*="rgb(255, 0, 0)"] .task-name {  /* Red color for failed */
+  color: #FFFFFF;
+}
+
+/* Style for in-progress task names */
+.task-bar[style*="rgb(255, 167, 38)"] .task-name {  /* Orange color for in-progress */
+  color: #FFFFFF;
+}
+
+.task-time {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Style for blocked tasks */
+.task-item.blocked .task-bar {
+  background: #fafafa;
+  border: 1px dashed #999;
+  opacity: 0.9;
+}
+
+.task-item.blocked .task-content {
+  color: #666;
+} 
