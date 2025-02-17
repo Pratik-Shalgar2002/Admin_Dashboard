@@ -24,7 +24,7 @@ export const tasks = [
         scheduledTime: '07:30',
         actualTime: null,
         status: 'Failed',
-        dependencies: ['nrms_1', 'mdm_1','ncfe_1']  // Depends on both previous tasks
+        dependencies: ['nrms_1', 'mdm_1','ncfe_1','mof_1']  // Depends on both previous tasks
       },
       { 
         id: 'nrms_4',
