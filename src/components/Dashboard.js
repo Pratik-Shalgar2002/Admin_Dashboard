@@ -4,7 +4,6 @@ import { tasks } from "../data/dashboardData"
 import "./Dashboard.css"
 import { TrendingUp, TrendingDown, Schedule, CheckCircle, Error, Pending, Lock } from '@mui/icons-material';
 import { useState, useEffect, useCallback, useRef } from "react";
-import styled from 'styled-components';
 
 const STATUS_COLORS = {
   'Completed': '#00C853',
@@ -130,43 +129,6 @@ const getDependencyStatus = (task, allTasks) => {
   };
 };
 
-// Add this component to show dependency lines
-const DependencyLines = ({ task, allTasks, taskPositions }) => {
-  if (!task.dependencies || task.dependencies.length === 0) return null;
-
-  return task.dependencies.map(depId => {
-    const depTask = allTasks.find(t => t.id === depId);
-    if (!depTask || !taskPositions[depId]) return null;
-
-    const startPos = taskPositions[depId];
-    const endPos = taskPositions[task.id];
-    
-    return (
-      <svg
-        key={`${depId}-${task.id}`}
-        style={{
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          width: '100%',
-          height: '100%',
-          pointerEvents: 'none'
-        }}
-      >
-        <line
-          x1={startPos.x}
-          y1={startPos.y}
-          x2={endPos.x}
-          y2={endPos.y}
-          stroke={depTask.status === 'Failed' ? '#FF0000' : '#666'}
-          strokeWidth="1"
-          strokeDasharray={depTask.status === 'Failed' ? "4" : "none"}
-        />
-      </svg>
-    );
-  });
-};
-
 // Update the DependencyArrow component
 const DependencyArrow = ({ startTask, endTask }) => {
   const [arrowPoints, setArrowPoints] = useState(null);
@@ -228,11 +190,6 @@ const DependencyArrow = ({ startTask, endTask }) => {
     </svg>
   );
 };
-
-const PieChartSection = styled.div`
-  width: 400px;
-  height: 400px;
-`;
 
 const Dashboard = () => {
   const theme = useTheme()
@@ -665,8 +622,6 @@ const Dashboard = () => {
             </Typography>
             <Box className="timeline-metrics">
               <span>Total Tasks: {tasks.reduce((acc, group) => acc + group.tasks.length, 0)}</span>
-              <span>Active Groups: {tasks.length}</span>
-              <span>Latest Update: {new Date().toLocaleTimeString()}</span>
             </Box>
           </Box>
           <Box className="timeline-wrapper">
