@@ -23,8 +23,8 @@ export const tasks = [
         name: 'Intraday',
         scheduledTime: '07:30',
         actualTime: null,
-        status: 'Completed',
-        dependencies: ['nrms_1', 'mdm_1']  // Depends on both previous tasks
+        status: 'Failed',
+        dependencies: ['nrms_1', 'mdm_1','ncfe_1']  // Depends on both previous tasks
       },
       { 
         id: 'nrms_4',
@@ -114,7 +114,7 @@ export const tasks = [
         scheduledTime: '06:18',
         actualTime: null,
         status: 'Failed',
-        dependencies: ['mof_1']
+        dependencies: ['mof_1','mdm_1']
       },
       { 
         id: 'mof_3',

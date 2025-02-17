@@ -3,7 +3,8 @@ import { PieChart, Pie, Cell, Legend, ResponsiveContainer, Tooltip } from "recha
 import { tasks } from "../data/dashboardData"
 import "./Dashboard.css"
 import { TrendingUp, TrendingDown, Schedule, CheckCircle, Error, Pending, Lock } from '@mui/icons-material';
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
+import styled from 'styled-components';
 
 const STATUS_COLORS = {
   'Completed': '#00C853',
@@ -203,17 +204,7 @@ const DependencyArrow = ({ startTask, endTask }) => {
   const controlX = startX + (endX - startX) / 2;
 
   return (
-    <svg
-      style={{
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        width: '100%',
-        height: '100%',
-        pointerEvents: 'none',
-        zIndex: 1
-      }}
-    >
+    <svg className="dependency-arrow">
       <defs>
         <marker
           id={`arrowhead-${startTask.id}-${endTask.id}`}
@@ -225,175 +216,58 @@ const DependencyArrow = ({ startTask, endTask }) => {
         >
           <polygon
             points="0 0, 10 3.5, 0 7"
-            fill="#FF0000"
+            fill="#DC2626"
           />
         </marker>
       </defs>
       <path
         d={`M ${startX} ${startY} Q ${controlX} ${startY} ${(startX + endX) / 2} ${(startY + endY) / 2} T ${endX} ${endY}`}
-        fill="none"
-        stroke="#FF0000"
-        strokeWidth="1.5"
-        strokeDasharray="4"
+        className="dependency-path failed"
         markerEnd={`url(#arrowhead-${startTask.id}-${endTask.id})`}
       />
     </svg>
   );
 };
 
-// Update the Timeline component's dependency handling
-const Timeline = () => {
-  const allTasks = tasks.reduce((acc, group) => [...acc, ...group.tasks], []);
-
-  // Find all failed tasks and their dependencies
-  const getFailedTaskConnections = () => {
-    const connections = [];
-    
-    // Find all failed tasks
-    const failedTasks = allTasks.filter(task => task.status === 'Failed');
-    
-    // For each failed task
-    failedTasks.forEach(failedTask => {
-      // Get its dependencies
-      failedTask.dependencies.forEach(depId => {
-        const depTask = allTasks.find(t => t.id === depId);
-        if (depTask) {
-          // Create connection from dependency to failed task
-          connections.push({
-            startTask: depTask,         // Arrow starts from dependency
-            endTask: failedTask,        // Arrow points to failed task
-            isBlocked: true
-          });
-        }
-      });
-    });
-
-    return connections;
-  };
-
-  // Render dependency arrows
-  const renderDependencyArrows = () => {
-    const connections = getFailedTaskConnections();
-    return connections.map(({ startTask, endTask }, index) => (
-      <DependencyArrow
-        key={`${startTask.id}-${endTask.id}-${index}`}
-        startTask={startTask}
-        endTask={endTask}
-      />
-    ));
-  };
-
-  const renderTask = (task) => {
-    const dependencyStatus = getDependencyStatus(task, allTasks);
-    const isBlocked = !dependencyStatus.canStart;
-    
-    return (
-      <Box 
-        id={task.id}
-        key={task.id} 
-        className={`task-item ${isBlocked ? 'blocked' : ''}`}
-      >
-        <Box
-          className="task-bar"
-          style={{ 
-            background: isBlocked ? '#f5f5f5' : getTaskColor(task.status, task.completedPercentage, false),
-            opacity: task.status === 'Pending' ? 1 : (isBlocked ? 0.7 : 1)
-          }}
-        >
-          <Box className="task-content">
-            <Box className="task-name">
-              <Typography 
-                component="span" 
-                style={{ 
-                  color: task.status === 'Pending' ? '#424242' : '#FFFFFF',
-                  fontWeight: 600,
-                  fontSize: '15px',
-                  marginRight: '8px'
-                }}
-              >
-                {task.name}
-              </Typography>
-              {task.status === 'Completed' && <CheckCircle fontSize="small" />}
-              {task.status === 'Failed' && <Error fontSize="small" color="error" />}
-              {task.status === 'Pending' && (
-                <Pending 
-                  fontSize="small" 
-                  style={{ 
-                    color: '#757575',
-                    marginLeft: '4px'
-                  }}
-                />
-              )}
-              {isBlocked && (
-                <Tooltip title={`Blocked by failed dependencies: ${
-                  dependencyStatus.failedDependencies
-                    .map(id => allTasks.find(t => t.id === id)?.name)
-                    .join(', ')
-                }`}>
-                  <Lock fontSize="small" style={{ marginLeft: 4, color: '#616161' }} />
-                </Tooltip>
-              )}
-            </Box>
-            <Box className="task-time">
-              <Schedule className="time-icon" />
-              <span style={{ 
-                color: task.status === 'Pending' ? '#000000' : 'inherit',
-                fontWeight: task.status === 'Pending' ? 500 : 'normal'
-              }}>
-                {formatTimeDisplay(task)}
-              </span>
-            </Box>
-          </Box>
-        </Box>
-      </Box>
-    );
-  };
-
-  return (
-    <Box className="timeline-wrapper" style={{ position: 'relative' }}>
-      {tasks.map((taskGroup) => (
-        <Box key={taskGroup.category} className="timeline-row">
-          <Box className="category-label">
-            {taskGroup.category}
-            <span className="category-count">{taskGroup.tasks.length}</span>
-          </Box>
-          <Box className="tasks-container">
-            {taskGroup.tasks.map(task => renderTask(task))}
-          </Box>
-        </Box>
-      ))}
-      {/* Render arrows after all tasks */}
-      {renderDependencyArrows()}
-    </Box>
-  );
-};
-
-// Add some CSS for the timeline
-const styles = `
-.timeline-wrapper {
-  position: relative;
-  overflow: visible;
-}
-
-.task-item {
-  position: relative;
-  z-index: 2;
-}
-
-.task-item.blocked {
-  border: 1px dashed #999;
-}
-
-.task-bar {
-  position: relative;
-  z-index: 2;
-  background: white;
-}
+const PieChartSection = styled.div`
+  width: 400px;
+  height: 400px;
 `;
 
 const Dashboard = () => {
   const theme = useTheme()
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"))
+  const timelineRef = useRef(null);
+  const [dependencies, setDependencies] = useState([]);
+
+  // Define allTasks at the component level so it's available everywhere
+  const allTasks = tasks.reduce((acc, group) => [...acc, ...group.tasks], []);
+
+  // Add getFailedTaskConnections function
+  const getFailedTaskConnections = () => {
+    const connections = [];
+    
+    // Find failed tasks
+    const failedTasks = allTasks.filter(task => task.status === 'Failed');
+    
+    // For each failed task, create connections from its dependencies
+    failedTasks.forEach(failedTask => {
+      if (failedTask.dependencies) {
+        failedTask.dependencies.forEach(depId => {
+          const depTask = allTasks.find(t => t.id === depId);
+          if (depTask) {
+            connections.push({
+              startTask: depTask,         // Arrow starts from dependency
+              endTask: failedTask,        // Arrow points to failed task
+              isBlocked: true
+            });
+          }
+        });
+      }
+    });
+
+    return connections;
+  };
 
   // Calculate pie data dynamically from tasks
   const calculatePieData = () => {
@@ -492,6 +366,165 @@ const Dashboard = () => {
   const statusData = calculateStatusData();
   const pieData = calculatePieData();
 
+  // Update renderTask function to use the component-level allTasks
+  const renderTask = (task) => {
+    const dependencyStatus = getDependencyStatus(task, allTasks);
+    const isBlocked = !dependencyStatus.canStart;
+    
+    return (
+      <Box 
+        id={task.id}
+        key={task.id} 
+        className={`task-item ${isBlocked ? 'blocked' : ''}`}
+      >
+        <Box
+          className="task-bar"
+          style={{ 
+            background: isBlocked ? '#f5f5f5' : getTaskColor(task.status, task.completedPercentage, false),
+            opacity: task.status === 'Pending' ? 1 : (isBlocked ? 0.7 : 1)
+          }}
+        >
+          <Box className="task-content">
+            <Box className={`task-name ${task.status === 'Pending' ? 'pending' : ''}`}>
+              <Typography component="span">
+                {task.name}
+              </Typography>
+              {task.status === 'Completed' && <CheckCircle fontSize="small" />}
+              {task.status === 'Failed' && <Error fontSize="small" color="error" />}
+              {task.status === 'Pending' && (
+                <Pending fontSize="small" className="pending-icon" />
+              )}
+              {isBlocked && (
+                <Tooltip title={`Blocked by failed dependencies: ${
+                  dependencyStatus.failedDependencies
+                    .map(id => allTasks.find(t => t.id === id)?.name)
+                    .join(', ')
+                }`}>
+                  <Lock fontSize="small" className="lock-icon" />
+                </Tooltip>
+              )}
+            </Box>
+            <Box className={`task-time ${task.status === 'Pending' ? 'pending' : ''}`}>
+              <Schedule className="time-icon" />
+              <span>{formatTimeDisplay(task)}</span>
+            </Box>
+          </Box>
+        </Box>
+      </Box>
+    );
+  };
+
+  // Update renderDependencyArrows function
+  const renderDependencyArrows = () => {
+    const connections = getFailedTaskConnections();
+    return connections.map(({ startTask, endTask }, index) => (
+      <DependencyArrow
+        key={`${startTask.id}-${endTask.id}-${index}`}
+        startTask={startTask}
+        endTask={endTask}
+      />
+    ));
+  };
+
+  // Update Timeline component to use the component-level allTasks
+  const Timeline = () => {
+    // Calculate dependencies when component mounts
+    useEffect(() => {
+      const deps = [];
+      allTasks.forEach(task => {
+        if (task.dependencies) {
+          task.dependencies.forEach(depId => {
+            deps.push({
+              start: depId,
+              end: task.id
+            });
+          });
+        }
+      });
+      setDependencies(deps);
+    }, []);
+
+    return (
+      <Box className="timeline-wrapper" ref={timelineRef}>
+        {tasks.map((taskGroup) => (
+          <Box key={taskGroup.category} className="timeline-row">
+            <Box className="category-label">
+              {taskGroup.category}
+              <span className="category-count">{taskGroup.tasks.length}</span>
+            </Box>
+            <Box className="tasks-container">
+              {taskGroup.tasks.map(task => renderTask(task))}
+            </Box>
+          </Box>
+        ))}
+        {renderDependencyArrows()}
+      </Box>
+    );
+  };
+
+  // Update the updateArrowPositions function
+  const updateArrowPositions = useCallback(() => {
+    if (!timelineRef.current) return;
+
+    const calculateArrowPosition = (sourceTask, targetTask) => {
+      const sourceElement = document.getElementById(sourceTask);
+      const targetElement = document.getElementById(targetTask);
+      
+      if (!sourceElement || !targetElement) return null;
+
+      const containerRect = timelineRef.current.getBoundingClientRect();
+      const sourceRect = sourceElement.getBoundingClientRect();
+      const targetRect = targetElement.getBoundingClientRect();
+
+      // Calculate relative positions
+      const sourceX = sourceRect.right - containerRect.left;
+      const sourceY = sourceRect.top + (sourceRect.height / 2) - containerRect.top;
+      const targetX = targetRect.left - containerRect.left;
+      const targetY = targetRect.top + (targetRect.height / 2) - containerRect.top;
+
+      // Calculate control points for curved path
+      const controlX = (targetX - sourceX) * 0.5;
+
+      return {
+        path: `M ${sourceX},${sourceY} 
+               C ${sourceX + controlX},${sourceY} 
+                 ${targetX - controlX},${targetY} 
+                 ${targetX},${targetY}`,
+        arrowPosition: {
+          left: targetX - 10,
+          top: targetY - 6
+        }
+      };
+    };
+
+    // Update positions for each dependency
+    dependencies.forEach(dep => {
+      const positions = calculateArrowPosition(dep.start, dep.end);
+      if (positions) {
+        // Update arrow positions in the DOM or state as needed
+        // You can add state management here if required
+      }
+    });
+  }, [dependencies]);
+
+  // Add resize observer
+  useEffect(() => {
+    const resizeObserver = new ResizeObserver(() => {
+      updateArrowPositions();
+    });
+
+    if (timelineRef.current) {
+      resizeObserver.observe(timelineRef.current);
+    }
+
+    return () => resizeObserver.disconnect();
+  }, [updateArrowPositions]);
+
+  // Also update positions on initial render and when dependencies change
+  useEffect(() => {
+    updateArrowPositions();
+  }, [dependencies, updateArrowPositions]);
+
   return (
     <Box className="main-container">
       <Box className="dashboard-wrapper">
@@ -528,7 +561,7 @@ const Dashboard = () => {
                 <Box
                   key={status.label}
                   className="status-box"
-                  style={{ 
+                  style={{
                     background: getTaskColor(status.label, null, true)
                   }}
                 >
@@ -539,19 +572,20 @@ const Dashboard = () => {
                   >
                     {status.count}
                   </Typography>
-                  <Typography variant="body2" className="status-text">
+                  <Typography 
+                    variant="body2" 
+                    className="status-text"
+                  >
                     {formatStatusLabel(status.label)}
                   </Typography>
                   <Box className="status-details">
                     <span>Today: {status.today}</span>
                     <span>Week: {status.weekly}</span>
                   </Box>
-                  {true && (
-                    <Box className={`status-trend ${status.trend > 0 ? 'trend-up' : 'trend-down'}`}>
-                      {status.trend > 0 ? <TrendingUp fontSize="small" /> : <TrendingDown fontSize="small" />}
-                      {Math.abs(status.trend)}% vs last week
-                    </Box>
-                  )}
+                  <Box className={`status-trend ${status.trend > 0 ? 'trend-up' : 'trend-down'}`}>
+                    {status.trend > 0 ? <TrendingUp fontSize="small" /> : <TrendingDown fontSize="small" />}
+                    {Math.abs(status.trend)}% vs last week
+                  </Box>
                 </Box>
               ))}
             </Box>
@@ -567,14 +601,14 @@ const Dashboard = () => {
               </Typography>
             </Box>
             <Box className="chart-wrapper">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
+              <ResponsiveContainer width="100%" height={400}>
+                <PieChart width={400} height={400}>
                   <Pie
                     data={pieData}
                     cx="50%"
                     cy="45%"
                     innerRadius={isMobile ? "35%" : "40%"}
-                    outerRadius={isMobile ? "50%" : "55%"}
+                    outerRadius={isMobile ? "50%" : "60%"}
                     paddingAngle={2}
                     dataKey="value"
                     strokeWidth={2}
